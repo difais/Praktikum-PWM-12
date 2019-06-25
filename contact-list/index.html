@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Contact Database</title>
+
+    <link href="bootstrap.css" rel="stylesheet">
+    <link href="app.css" rel="stylesheet">
+</head>
+
+<body>
+
+<div class="navbar navbar-inverse navbar-fixed-top">
+  <div class="container">
+    <div class="navbar-header">
+      <a class="navbar-brand" href="#">Contact Database</a>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+    <h3>Add Person</h3>
+    <form>
+      <div class="form-group">
+        <input type="name" class="form-control" id="name"  placeholder="Name">
+      </div>
+      <div class="form-group">
+        <input type="email" class="form-control" id="email" placeholder="Email">
+      </div>
+      <button type="submit" class="btn btn-primary" id="addPerson">
+        Add Person
+      </button>
+    </form>
+    <p />
+
+    <h3>Get Person</h3>
+    <input type="email" id="getemail" placeholder="Email"><br/>
+    <button id="getPerson" class="btn btn-success">Get Person</button><br/><br/>
+    <p />
+    <input type="text" id="nameupdate"><br/>
+    <input type="email" id="emailupdate"><br/>
+    <input type="text" id="createdupdate"><br/>
+    <button id="updatePerson" class="btn btn-warning">Update Person</button>
+    <p />
+
+    <h3>Delete Person</h3>
+    <form>
+      <div class="form-group">
+        <input type="email" class="form-control" id="emaildelete" placeholder="Email">
+      </div>
+      <button type="submit" class="btn btn-danger" id="deletePerson">
+        Delete Person
+      </button>
+    </form>    
+    <p />
+
+    <h3>Show Person</h3>
+    <button id="showAll" class="btn btn-info">Show All</button>
+    <div id="results"></div>
+    <p />
+</div>
+
+<script src="jquery-2.0.0.min.js"></script>
+<script src="bootstrap.min.js"></script>
+<script>
+function idbOK() {
+    return "indexedDB" in window;
+}
+
+var db;
+
+$(document).ready(function() {
+    if(!idbOK()) return;
+
+    var openRequest = indexedDB.open("idb_contact",1);
+
+    openRequest.onupgradeneeded = function(e) {
+        var thisDB = e.target.result;
+        console.log("running onupgradeneeded");
+
+        if(!thisDB.objectStoreNames.contains("people")) {
+            var peopleOS = thisDB.createObjectStore("people", {keyPath: "email"});
+        }
+    }
+
+    openRequest.onsuccess = function(e) {
+        console.log("running onsuccess");
+        db = e.target.result;
+
+        $("#addPerson").on("click", addPerson);
+        $("#showAll").on("click", getPeople);
+        $("#getPerson").on("click", getPerson);
+        $("#updatePerson").on("click", updatePerson);
+        $("#deletePerson").on("click", deletePerson);
+    }
+
+    openRequest.onerror = function(e) {
+        console.log("onerror!");
+        console.dir(e);
+    }
+});
+
+function addPerson(e) {
+    var name = $("#name").val();
+    var email = $("#email").val();
+
+    console.log("About to add "+name+"/"+email);
+
+    var transaction = db.transaction(["people"],"readwrite");
+    var store = transaction.objectStore("people");
+
+    var person = {
+        name:name,
+        email:email,
+        created:new Date().getTime()
+    }
+    var request = store.add(person);
+
+    request.onerror = function(e) {
+        console.log("Error",e.target.error.name);
+    }
+
+    request.onsuccess = function(e) {
+        console.log("I did it");
+    }
+}
+
+function getPerson(e) {
+    var key = $("#getemail").val();
+    if(key === "") return;
+
+    var transaction = db.transaction(["people"],"readonly");
+    var store = transaction.objectStore("people");
+    var request = store.get(key);
+
+    request.onsuccess = function(e) {
+        var result = e.target.result;
+        console.dir(result);
+        $("#nameupdate").val(result.name);
+        $("#emailupdate").val(result.email);
+        $("#createdupdate").val(result.created);
+    }
+
+    request.onerror = function(e) {
+        console.log("Error");
+        console.dir(e);
+    }
+}
+
+function updatePerson(e) {
+    var name = $("#nameupdate").val();
+    var email = $("#emailupdate").val();
+    var created = $("#createdupdate").val();
+
+    console.log("About to update "+name+"/"+email);
+
+    var transaction = db.transaction(["people"],"readwrite");
+    var store = transaction.objectStore("people");
+    var person = {
+        name:name,
+        email:email,
+        created:created
+    }
+
+    var request = store.put(person);
+    request.onerror = function(e) {
+        console.log("Error",e.target.error.name);
+    }
+
+    request.onsuccess = function(e) {
+        console.log("Woot! Did it");
+    }
+}
+
+function getPeople(e) {
+    var s = "";
+    var transaction = db.transaction(["people"], "readonly");
+    var people = transaction.objectStore("people");
+    var cursor = people.openCursor();
+
+    cursor.onsuccess = function(e) {
+        var cursor = e.target.result;
+        if(cursor) {
+            s += "<h2>Key "+cursor.key+"</h2><p>";
+            for(var field in cursor.value) {
+                s+= field+"="+cursor.value[field]+"<br/>";
+            }
+            s+="</p>";
+            cursor.continue();
+        }
+    }
+
+    transaction.oncomplete = function() {
+        $("#results").html(s);
+    }
+}
+
+function deletePerson(e) {
+    var key = $("#emaildelete").val();
+    if(key === "") return;
+
+    var transaction = db.transaction(["people"],"readwrite");
+    var store = transaction.objectStore("people");
+    var request = store.delete(key);
+
+    request.onsuccess = function(e) {
+        console.log("Person deleted");
+        console.dir(e);
+    }
+
+    request.onerror = function(e) {
+        console.log("Error");
+        console.dir(e);
+    }
+}
+</script>
+</body>
+</html>
